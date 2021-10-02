@@ -2,7 +2,13 @@
 
 import sys
 
+# Luban reads the STL coordinate units in mm
+# Luban is unable to load a facet that is not a triangle
+# Luban uses Z as the vertical axis, Z = 0 is the ground
+# Luban has no capacity to vertically offset a model, anything below Z = 0 is clipped
+
 whitespace = { ' ': 1, '\n': 1, '\r': 1, '\t': 1 }
+newlines = { '\n': 1, '\r': 1 }
 UTF8 = "utf-8"
 
 # grumble grumble
@@ -10,10 +16,16 @@ true = True
 false = False
 none = None
 
+# global
+lineNumber = 1
+
 # eat white space
 def eatWhitespace (content, offset):
     #print ("eatWhitespace: ", offset)
+    global lineNumber;
     while ((offset < len (content)) and (whitespace.get (content[offset], 0) > 0)):
+        if (newlines.get (content[offset], 0) > 0):
+            lineNumber = lineNumber + 1
         offset += 1
     #print ("- eatWhitespace:", offset)
     return offset
@@ -36,13 +48,18 @@ def readFloat (content, offset):
     return (offset, none)
 
 # return true if an expected token was read
-def expect (content, offset, expected):
+def expect (content, offset, expected, required = true):
+    global lineNumber
     lastOffset = offset
+    lastLineNumber = lineNumber
     (offset, token) = readToken (content, offset)
     if (token == expected):
-        print ("matched: ", token)
+        #print ("matched: ", token)
         return (offset, true)
-    print ("failed to match token ({}) at {}".format (expected, offset))
+    lineNumber = lastLineNumber
+    if (required):
+        startOffset = eatWhitespace (content, lastOffset)
+        print ("failed to match token ({}), line {} (got '{}')".format (expected, lineNumber, token))
     return (lastOffset, false)
 
 # read a token from the compound, expect it in the content, the need for this
@@ -69,22 +86,27 @@ def readVector (content, offset, expected):
 
 # read a facet
 def readFacet (content, offset):
-    (offset, match) = expect (content, offset, "facet")
+    (offset, match) = expect (content, offset, "facet", false)
     if (match):
         # read a normal vector
         (offset, normal) = readVector (content, offset, "normal")
         (offset, match) = expectCompound (content, offset, "outer loop")
         if (match):
+            # the STL format would make you think facets could be any planar polygon, but
+            # no reader I can find supports anything but a triangle.
             vertices = []
-            # read vertices until there are no more
-            (offset, vertex) = readVector (content, offset, "vertex")
-            while (vertex != none):
-                vertices.append (vertex)
+            for i in range(3):
                 (offset, vertex) = readVector (content, offset, "vertex")
+                vertices.append (vertex)
             (offset, match) = expect (content, offset, "endloop")
             (offset, match) = expect (content, offset, "endfacet")
             return (offset, (normal, vertices))
     return (offset, none)
+
+# write a solid
+def writeSolid (facets):
+    return
+
 
 # read a solid, which consists of a bunch of facets
 def readSolid (content, offset):
@@ -95,8 +117,10 @@ def readSolid (content, offset):
         while (facet != none):
             facets.append (facet)
             (offset, facet) = readFacet (content, offset)
-            print (".")
+            #print (".")
         (offset, match) = expect (content, offset, "endsolid")
+        print ("Solid with {} facets".format (len (facets)))
+        return (offset, facets)
     return (offset, none)
 
 n = len(sys.argv)
@@ -120,6 +144,7 @@ if (n > 1):
         while (solid != none):
             solids.append (solid)
             (offset, solid) = readSolid (content, offset);
+        print ("Read {} Solid{}".format (len (solids), "" if (len(solids) == 1) else "s"))
 
     else:
         print ("binary format")

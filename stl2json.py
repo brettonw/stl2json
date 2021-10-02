@@ -110,7 +110,7 @@ def writeSolid (facets):
 
 # read a solid, which consists of a bunch of facets
 def readSolid (content, offset):
-    (offset, match) = expect (content, offset, "solid")
+    (offset, match) = expect (content, offset, "solid", false)
     if (match):
         facets = []
         (offset, facet) = readFacet (content, offset)
@@ -119,21 +119,21 @@ def readSolid (content, offset):
             (offset, facet) = readFacet (content, offset)
             #print (".")
         (offset, match) = expect (content, offset, "endsolid")
-        print ("Solid with {} facets".format (len (facets)))
+        print ("Read Solid with {} facets".format (len (facets)))
         return (offset, facets)
     return (offset, none)
 
 n = len(sys.argv)
 if (n > 1):
     filename = sys.argv[1]
-    print ("filename: {0}".format (filename))
+    print ("Filename: {0}".format (filename))
     with open(filename, mode='rb') as file:
         content = file.read()
 
     # get the first few bytes to look for the word "solid"
     (offset, match) = expect (content[0:10].decode (UTF8), 0, "solid")
     if (match):
-        print ("text format")
+        print ("Format: text")
 
         # decode the whole string to make this easier
         content = content.decode (UTF8);
